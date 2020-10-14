@@ -1,0 +1,9 @@
+build/
+out/
+*.sw*
+*.o
+*.sym
+*.elf
+tmp
+tags
+include/plat/default*
