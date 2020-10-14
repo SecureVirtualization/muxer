@@ -26,17 +26,35 @@ id_names = {
         0    : 'VM0',
         1    : 'VM1',
         2    : 'VM2',
-        3    : 'VM3'
+        3    : 'VM3',
         }
 id_pts = {}
+id_pts_reverse = {}
+slaves = []
 shutdown = False
 
-def allocate_pts():
+def pts_allocate():
     global id_pts
+    global id_pts_reverse
+    global slaves
     for k in id_names:
         master, slave = os.openpty()
         print ('Allocating pts for ' + id_names[k] + ' file ' + os.ttyname(slave))
         id_pts[k] = master
+        id_pts_reverse[master] = k
+        slaves.append(slave)
+
+def pts_cleanup():
+    global id_pts
+    global id_pts_reverse
+    global slaves
+    for k in id_pts:
+        os.close(id_pts[k])
+    for d in slaves:
+        os.close(d)
+    id_pts.clear()
+    id_pts_reverse.clear()
+    slaves.clear()
 
 def output(tag, string):
     global id_names
@@ -49,40 +67,42 @@ def spawn_tty_dispatcher(name):
     global tag_current
     global tag_in_current
     global shutdown
+    global id_pts_reverse
+
     s = serial.Serial(name)
     if not s:
         print ('[err]: cannot open serial device ' + name)
         return
-    allocate_pts()
+    pts_allocate()
+
+    # create joint select list
+    readers = [s]
+    for k in id_pts:
+        readers.append(id_pts[k])
+
     while not shutdown:
-        readers = [s, id_pts[0xff], id_pts[0]]
         r, _, _ = select.select(readers, [], [], 0.5)
-        if len(r) == 0:
-            continue
 
-        if s in r:
-            l = s.readline()
-            if l:
-                if 0xff in l:
-                    off = l.index(0xff)
-                    if off > 1:
-                        output (tag_current, str(l[:off-1], 'utf-8'))
-                    tag_current = l[off+1]
-                    output (tag_current, str(l[off+2:], 'utf-8'))
+        for d in r:
+            if s == d:
+                l = s.readline()
+                if l:
+                    if 0xff in l:
+                        off = l.index(0xff)
+                        if off > 1:
+                            output (tag_current, str(l[:off-1], 'utf-8'))
+                        tag_current = l[off+1]
+                        output (tag_current, str(l[off+2:], 'utf-8'))
+                    else:
+                        output (tag_current, str(l, 'utf-8'))
                 else:
-                    output (tag_current, str(l, 'utf-8'))
+                    print ('unexpected no data from serial')
             else:
-                print ('unexpected no data from serial')
-        if id_pts[0xff] in r:
-            if tag_in_current != 0xff:
-                tag_in_current = 0xff
-                s.write(b'\xff')
-                s.write(b'\xff')
-            s.write(os.read(id_pts[0xff], 1))
-#            print ('input for ' + id_names[0xff] + str(os.read(id_pts[0xff], 0xff), 'utf-8'))
-        if id_pts[0] in r:
-            print ('input for ' + id_names[0] + str(os.read(id_pts[0], 0xff), 'utf-8'))
-
+                if tag_in_current != id_pts_reverse[d]:
+                    tag_in_current = id_pts_reverse[d]
+                    s.write(b'\xff')
+                    s.write(id_pts_reverse[d].to_bytes(1, byteorder='big'))
+                s.write(os.read(d, 1))
 
 name = '/dev/ttyUSB0'
 if len(sys.argv) > 1:
@@ -94,6 +114,8 @@ while not shutdown:
             spawn_tty_dispatcher (name)
         except serial.SerialException:
             print ('Got exception from serial, pause 5 sec and retry.')
+            # do cleanup of pts
+            pts_cleanup()
             time.sleep(5)
     except KeyboardInterrupt:
         shutdown = True
