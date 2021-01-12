@@ -19,7 +19,7 @@ import signal
 import select
 import time
 
-tag_current = 0xff
+tag_current = 0
 tag_in_current = 0
 id_names = {
         0xff : 'V8H',
@@ -27,6 +27,13 @@ id_names = {
         1    : 'VM1',
         2    : 'VM2',
         3    : 'VM3',
+        }
+id_hv = {
+        0xff : b'\xff',
+        0    : b'\x00',
+        1    : b'\x01',
+        2    : b'\x02',
+        3    : b'\x03'
         }
 id_pts = {}
 id_pts_reverse = {}
@@ -39,7 +46,7 @@ def pts_allocate():
     global slaves
     for k in id_names:
         master, slave = os.openpty()
-        print ('Allocating pts for ' + id_names[k] + ' file ' + os.ttyname(slave))
+        print ('Allocating pts for ' + id_names[k] + ' file ' + os.ttyname(slave) + ' k ' + str(k))
         id_pts[k] = master
         id_pts_reverse[master] = k
         slaves.append(slave)
@@ -68,8 +75,9 @@ def spawn_tty_dispatcher(name):
     global tag_in_current
     global shutdown
     global id_pts_reverse
+    global id_hv
 
-    s = serial.Serial(name)
+    s = serial.Serial(name, timeout = 0.1)
     if not s:
         print ('[err]: cannot open serial device ' + name)
         return
@@ -80,8 +88,13 @@ def spawn_tty_dispatcher(name):
     for k in id_pts:
         readers.append(id_pts[k])
 
+    # at first we set vm0 to be a main input
+    s.write(b'\xff')
+    s.write(id_hv[tag_in_current])
+
+
     while not shutdown:
-        r, _, _ = select.select(readers, [], [], 0.5)
+        r, _, _ = select.select(readers, [], [], 0.1)
 
         for d in r:
             if s == d:
@@ -98,11 +111,12 @@ def spawn_tty_dispatcher(name):
                 else:
                     print ('unexpected no data from serial')
             else:
+                c = os.read(d, 1)
                 if tag_in_current != id_pts_reverse[d]:
                     tag_in_current = id_pts_reverse[d]
                     s.write(b'\xff')
-                    s.write(id_pts_reverse[d].to_bytes(1, byteorder='big'))
-                s.write(os.read(d, 1))
+                    s.write(id_hv[tag_in_current])
+                s.write(c)
 
 name = '/dev/ttyUSB0'
 if len(sys.argv) > 1:
@@ -113,10 +127,10 @@ while not shutdown:
         try:
             spawn_tty_dispatcher (name)
         except serial.SerialException:
-            print ('Got exception from serial, pause 5 sec and retry.')
+            print ('Got exception from serial, pause 1 sec and retry.')
             # do cleanup of pts
             pts_cleanup()
-            time.sleep(5)
+            time.sleep(1)
     except KeyboardInterrupt:
         shutdown = True
         print ('Quitting...')
