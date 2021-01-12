@@ -100,14 +100,18 @@ def spawn_tty_dispatcher(name):
             if s == d:
                 l = s.readline()
                 if l:
-                    if 0xff in l:
-                        off = l.index(0xff)
-                        if off > 1:
-                            output (tag_current, str(l[:off-1], 'utf-8'))
-                        tag_current = l[off+1]
-                        output (tag_current, str(l[off+2:], 'utf-8'))
-                    else:
-                        output (tag_current, str(l, 'utf-8'))
+                    # there might be multiple 0xff entries iterate through it
+                    cond = True
+                    while cond and len(l):
+                        if 0xff in l:
+                            off = l.index(0xff)
+                            if off > 1:
+                                output (tag_current, str(l[:off-1], 'utf-8'))
+                            tag_current = l[off+1]
+                            l = l[off+2:]
+                        else:
+                            output (tag_current, str(l, 'utf-8'))
+                            cond = False
                 else:
                     print ('unexpected no data from serial')
             else:
