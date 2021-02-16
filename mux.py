@@ -27,13 +27,21 @@ id_names = {
         1    : 'VM1',
         2    : 'VM2',
         3    : 'VM3',
+        4    : 'VM4',
+        5    : 'VM5',
+        6    : 'VM6',
+        7    : 'VM7',
         }
 id_hv = {
         0xff : b'\xff',
         0    : b'\x00',
         1    : b'\x01',
         2    : b'\x02',
-        3    : b'\x03'
+        3    : b'\x03',
+        4    : b'\x04',
+        5    : b'\x05',
+        6    : b'\x06',
+        7    : b'\x07',
         }
 id_pts = {}
 id_pts_reverse = {}
@@ -106,11 +114,11 @@ def spawn_tty_dispatcher(name):
                         if 0xff in l:
                             off = l.index(0xff)
                             if off > 1:
-                                output (tag_current, str(l[:off-1], 'utf-8'))
+                                output (tag_current, str(l[:off-1], 'utf-8', 'ignore'))
                             tag_current = l[off+1]
                             l = l[off+2:]
                         else:
-                            output (tag_current, str(l, 'utf-8'))
+                            output (tag_current, str(l, 'utf-8', 'ignore'))
                             cond = False
                 else:
                     print ('unexpected no data from serial')
@@ -131,10 +139,10 @@ while not shutdown:
         try:
             spawn_tty_dispatcher (name)
         except serial.SerialException:
-            print ('Got exception from serial, pause 1 sec and retry.')
+            print ('Got exception from serial, pause 200 msec and retry.')
             # do cleanup of pts
             pts_cleanup()
-            time.sleep(1)
+            time.sleep(0.2)
     except KeyboardInterrupt:
         shutdown = True
         print ('Quitting...')
