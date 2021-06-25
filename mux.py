@@ -85,7 +85,7 @@ def spawn_tty_dispatcher(name):
     global id_pts_reverse
     global id_hv
 
-    s = serial.Serial(name, timeout = 0.1)
+    s = serial.Serial(name, baudrate=115200, timeout = 0.1)
     if not s:
         print ('[err]: cannot open serial device ' + name)
         return
