@@ -123,16 +123,17 @@ def spawn_tty_dispatcher(name):
                     while cond and len(l):
                         if 0xff in l:
                             off = l.index(0xff)
-                            if ((off + 2) < len(l)):
-                                # skip
-                                cond = False
-                                continue
                             if off > 1:
                                 output (tag_current, str(l[:off-1], 'utf-8', 'ignore'))
-                            if [off+1] in id_available:
+                            if ((off + 1) < len (l)) and (l[off+1] in id_available):
                                 # filter wrong or broken tags
                                 tag_current = l[off+1]
-                            l = l[off+2:]
+                            else:
+                                cond = False
+                            if (off + 2) < len (l):
+                                l = l[off+2:]
+                            else:
+                                cond = False
                         else:
                             output (tag_current, str(l, 'utf-8', 'ignore'))
                             cond = False
