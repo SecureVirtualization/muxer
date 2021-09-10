@@ -1,0 +1,9 @@
+image: gcc:9
+
+build:
+  stage: build
+  script:
+    - mkdir -p build && cp mux.py build/
+  artifacts:
+    paths:
+      - build

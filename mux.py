@@ -43,6 +43,16 @@ id_hv = {
         6    : b'\x06',
         7    : b'\x07',
         }
+id_available = (
+        0xff,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7)
 id_pts = {}
 id_pts_reverse = {}
 slaves = []
@@ -113,9 +123,15 @@ def spawn_tty_dispatcher(name):
                     while cond and len(l):
                         if 0xff in l:
                             off = l.index(0xff)
+                            if ((off + 2) < len(l)):
+                                # skip
+                                cond = False
+                                continue
                             if off > 1:
                                 output (tag_current, str(l[:off-1], 'utf-8', 'ignore'))
-                            tag_current = l[off+1]
+                            if [off+1] in id_available:
+                                # filter wrong or broken tags
+                                tag_current = l[off+1]
                             l = l[off+2:]
                         else:
                             output (tag_current, str(l, 'utf-8', 'ignore'))
@@ -130,6 +146,7 @@ def spawn_tty_dispatcher(name):
                     s.write(id_hv[tag_in_current])
                 s.write(c)
 
+
 name = '/dev/ttyUSB0'
 if len(sys.argv) > 1:
     name = sys.argv[1]
@@ -138,11 +155,12 @@ while not shutdown:
     try:
         try:
             spawn_tty_dispatcher (name)
-        except serial.SerialException:
-            print ('Got exception from serial, pause 200 msec and retry.')
+        except (serial.SerialException, IndexError) as e:
+            print ('Got exception, pause 200 msec and retry.')
+            print (e)
             # do cleanup of pts
             pts_cleanup()
-            time.sleep(0.2)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         shutdown = True
         print ('Quitting...')
