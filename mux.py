@@ -11,37 +11,41 @@
 # and related documentation without an express license agreement from
 # the owner is strictly prohibited.
 
-import serial
 import sys
 import pty
 import os
 import signal
 import select
 import time
+try:
+    import serial
+except ModuleNotFoundError:
+    print("[E] Module pyserial is not installed, please do: pip3 install pyserial")
+    sys.exit(-1)
 
 tag_current = 0
 tag_in_current = 0
 id_names = {
-        0xff : 'V8H',
-        0    : 'VM0',
-        1    : 'VM1',
-        2    : 'VM2',
-        3    : 'VM3',
-        4    : 'VM4',
-        5    : 'VM5',
-        6    : 'VM6',
-        7    : 'VM7',
+        0xff : "V8H",
+        0    : "VM0",
+        1    : "VM1",
+        2    : "VM2",
+        3    : "VM3",
+        4    : "VM4",
+        5    : "VM5",
+        6    : "VM6",
+        7    : "VM7",
         }
 id_hv = {
-        0xff : b'\xff',
-        0    : b'\x00',
-        1    : b'\x01',
-        2    : b'\x02',
-        3    : b'\x03',
-        4    : b'\x04',
-        5    : b'\x05',
-        6    : b'\x06',
-        7    : b'\x07',
+        0xff : b"\xff",
+        0    : b"\x00",
+        1    : b"\x01",
+        2    : b"\x02",
+        3    : b"\x03",
+        4    : b"\x04",
+        5    : b"\x05",
+        6    : b"\x06",
+        7    : b"\x07",
         }
 id_available = (
         0xff,
@@ -64,7 +68,7 @@ def pts_allocate():
     global slaves
     for k in id_names:
         master, slave = os.openpty()
-        print ('Allocating pts for ' + id_names[k] + ' file ' + os.ttyname(slave) + ' k ' + str(k))
+        print("[I] allocating pts for " + id_names[k] + " file " + os.ttyname(slave) + " k " + str(k))
         id_pts[k] = master
         id_pts_reverse[master] = k
         slaves.append(slave)
@@ -85,7 +89,7 @@ def output(tag, string):
     global id_names
     global id_pts
     pty = id_pts[tag]
-    out = (string).encode('utf-8')
+    out = (string).encode("utf-8")
     os.write(pty, out)
 
 def spawn_tty_dispatcher(name):
@@ -97,7 +101,7 @@ def spawn_tty_dispatcher(name):
 
     s = serial.Serial(name, baudrate=115200, timeout = 0.1)
     if not s:
-        print ('[err]: cannot open serial device ' + name)
+        print("[E]: cannot open serial device " + name)
         return
     pts_allocate()
 
@@ -124,7 +128,7 @@ def spawn_tty_dispatcher(name):
                         if 0xff in l:
                             off = l.index(0xff)
                             if off > 1:
-                                output (tag_current, str(l[:off-1], 'utf-8', 'ignore'))
+                                output (tag_current, str(l[:off-1], "utf-8", "ignore"))
                             if ((off + 1) < len (l)) and (l[off+1] in id_available):
                                 # filter wrong or broken tags
                                 tag_current = l[off+1]
@@ -135,10 +139,10 @@ def spawn_tty_dispatcher(name):
                             else:
                                 cond = False
                         else:
-                            output (tag_current, str(l, 'utf-8', 'ignore'))
+                            output (tag_current, str(l, "utf-8", "ignore"))
                             cond = False
                 else:
-                    print ('unexpected no data from serial')
+                    print("[E] no data from serial")
             else:
                 c = os.read(d, 1)
                 if tag_in_current != id_pts_reverse[d]:
@@ -148,20 +152,20 @@ def spawn_tty_dispatcher(name):
                 s.write(c)
 
 
-name = '/dev/ttyUSB0'
+name = "/dev/ttyUSB0"
 if len(sys.argv) > 1:
     name = sys.argv[1]
 
 while not shutdown:
     try:
         try:
-            spawn_tty_dispatcher (name)
+            spawn_tty_dispatcher(name)
         except (serial.SerialException, IndexError) as e:
-            print ('Got exception, pause 200 msec and retry.')
-            print (e)
+            print("[W] got exception, pause 200 msec and retry.")
+            print(e)
             # do cleanup of pts
             pts_cleanup()
             time.sleep(0.5)
     except KeyboardInterrupt:
         shutdown = True
-        print ('Quitting...')
+        print("[I] quitting...")
